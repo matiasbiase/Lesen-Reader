@@ -12,7 +12,7 @@ en una carpeta y después las repasás.
 - En la Mac: <http://localhost:8777>
 - En el celu: por [Tailscale](https://tailscale.com), solo dentro de tu tailnet.
   Poné tu dirección (`https://TU-MAQUINA.TU-TAILNET.ts.net:8443`) en un
-  archivo `direccion.txt` al lado de `run.sh` y la vas a ver al arrancar.
+  archivo `address.txt` al lado de `run.sh` y la vas a ver al arrancar.
 
 Necesita Ollama corriendo con `gemma4:12b`. Sin Ollama la app anda igual, pero
 sin el análisis en contexto: te muestra todas las acepciones y elegís vos.

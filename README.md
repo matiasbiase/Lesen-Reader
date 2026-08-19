@@ -11,17 +11,18 @@ a deck, and later you review them.
 
 - On the Mac: <http://localhost:8777>
 - On your phone: over [Tailscale](https://tailscale.com), inside your tailnet
-  only. Put your address (`https://YOUR-MACHINE.YOUR-TAILNET.ts.net:8443`) in a
-  `direccion.txt` file next to `run.sh` and you'll see it printed on startup.
+  only. Put your address (`https://YOUR-MACHINE.YOUR-TAILNET.ts.net:8443`) in an
+  `address.txt` file next to `run.sh` and you'll see it printed on startup.
 
 Needs Ollama running with `gemma4:12b`. Without Ollama the app still works, but
 without the in-context analysis: it shows you every sense and you pick.
 
-> **A note on language.** The interface and the code are in Spanish, and that is
-> a product decision rather than an oversight: this is a German reader *for
-> Spanish speakers*. The dictionary layer pulls the **Spanish** glosses out of
-> the German Wiktionary, sense by sense. An English interface would be
-> promising something the app doesn't do.
+> **A note on language.** The code reads in English. What stays in Spanish is
+> everything the reader sees — the interface, the model prompts, the grammar
+> explanations — and that's a product decision, not an oversight: this is a
+> German reader *for Spanish speakers*. The dictionary layer pulls the
+> **Spanish** glosses out of the German Wiktionary, sense by sense. An English
+> interface would be promising something the app doesn't do.
 
 ## The idea
 
@@ -165,6 +166,7 @@ backend/
   store.py       SQLite: vocabulary, saved articles, spaced review (Leitner)
   app.py         FastAPI
 web/             frontend with no dependencies
+tests/           the measurements the design rests on — see tests/README.md
 data/lesen.db    your words — not in this repo
 ```
 

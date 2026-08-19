@@ -1,9 +1,9 @@
 """
-Noticias: feeds verificados + extracción del cuerpo del artículo.
+News: verified feeds + article body extraction.
 
-Los feeds de acá están todos probados a mano (responden 200 y traen items).
-Los de DW por tema y los de nachrichtenleicht que probé devolvían 404, así que
-no los incluyo para no llenar la app de fuentes muertas.
+Every feed in here was tested by hand (returns 200 and carries items). DW's
+per-topic feeds and the nachrichtenleicht ones I tried returned 404, so they're
+left out rather than filling the app with dead sources.
 """
 import logging
 import re
@@ -25,7 +25,7 @@ class Feed:
     name: str
     url: str
     topic: str
-    level: str  # "medio" | "dificil"
+    level: str  # "medio" | "dificil" — shown to the reader, so it stays in Spanish
 
 
 FEEDS = [
@@ -57,25 +57,26 @@ def _strip(html: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html or "")).strip()
 
 
-def _resumen(summary: str, title: str) -> str:
+def _summary(summary: str, title: str) -> str:
     """
-    El resumen, salvo cuando es el título otra vez.
+    The summary, except when it's the headline all over again.
 
-    Varios feeds —tagesschau el que más— mandan la descripción con el titular
-    adentro cuando no tienen bajada. Medido el 19/08 sobre `wissen`: 12 de 40
-    notas venían así. En la lista se veía el mismo renglón dos veces, uno en
-    negrita y otro abajo en gris, como si fuera información nueva.
+    Several feeds — tagesschau most of all — send the description with the
+    headline inside it when the piece has no standfirst. Measured on 19 Aug
+    against `wissen`: 12 of 40 articles came in like that. The list showed the
+    same line twice, once in bold and once below in grey, as if the second one
+    carried something new.
 
-    ⚠️ Se compara sin distinguir mayúsculas y sin la puntuación del final,
-    porque el mismo texto vuelve con una coma o un punto de diferencia. Lo que
-    NO se hace es adivinar: si el resumen apenas empieza igual pero sigue, se
-    deja entero —de esos no había ninguno, y recortarlo sería inventar una
-    regla para un caso que no existe.
+    ⚠️ The comparison ignores case and trailing punctuation, because the same
+    text comes back with a comma or a full stop of difference. What it does NOT
+    do is guess: if the summary merely starts the same and then goes on, it's
+    kept whole — there were none of those, and trimming them would be inventing
+    a rule for a case that doesn't exist.
     """
     if not summary:
         return ""
-    igual = lambda t: re.sub(r"[\s.,;:!?\u2026-]+$", "", t).casefold()
-    return "" if igual(summary) == igual(title) else summary
+    same = lambda t: re.sub(r"[\s.,;:!?\u2026-]+$", "", t).casefold()
+    return "" if same(summary) == same(title) else summary
 
 
 def fetch_feed(feed: Feed) -> list[dict]:
@@ -87,7 +88,7 @@ def fetch_feed(feed: Feed) -> list[dict]:
         r.raise_for_status()
         parsed = feedparser.parse(r.content)
     except Exception as e:
-        log.warning("feed %s falló: %s", feed.id, e)
+        log.warning("feed %s failed: %s", feed.id, e)
         return []
 
     items = []
@@ -95,7 +96,7 @@ def fetch_feed(feed: Feed) -> list[dict]:
         items.append({
             "id": e.get("id") or e.get("link", ""),
             "title": _strip(e.get("title", "")),
-            "summary": _resumen(_strip(e.get("summary", "")),
+            "summary": _summary(_strip(e.get("summary", "")),
                                 _strip(e.get("title", "")))[:400],
             "link": e.get("link", ""),
             "published": e.get("published", "") or e.get("updated", ""),
@@ -110,8 +111,8 @@ def fetch_feed(feed: Feed) -> list[dict]:
 
 def score(item: dict, interests: list[str]) -> int:
     """
-    Puntaje por intereses: cuenta palabras clave en título y resumen.
-    Simple a propósito — el usuario ve por qué apareció cada nota.
+    Interest score: counts keywords in the headline and the summary.
+    Deliberately simple — the reader gets to see why each article showed up.
     """
     if not interests:
         return 0
@@ -140,7 +141,7 @@ def headlines(topics: list[str], interests: list[str], limit: int = 40) -> list[
 
 
 def extract(url: str) -> dict | None:
-    """Baja el artículo y saca el texto limpio, sin menú ni cookies."""
+    """Fetches the article and pulls out the clean text, no menus or cookie banners."""
     try:
         r = httpx.get(url, headers={"User-Agent": UA}, timeout=20.0, follow_redirects=True)
         r.raise_for_status()
@@ -156,5 +157,5 @@ def extract(url: str) -> dict | None:
             "n_chars": len(text),
         }
     except Exception as e:
-        log.warning("extract %s falló: %s", url, e)
+        log.warning("extract %s failed: %s", url, e)
         return None

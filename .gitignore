@@ -1,14 +1,14 @@
-# El entorno de Python: 239 MB que se rearman con run.sh
+# The Python environment: 239 MB that run.sh rebuilds
 .venv/
 __pycache__/
 *.pyc
 
-# Tus palabras, tus notas y el log del server: son tuyos, no del repo.
-# La base se crea sola la primera vez que arranca.
+# Your words, your saved articles and the server log: yours, not the repo's.
+# The database creates itself the first time the server starts.
 data/
 
-# Tu dirección de Tailscale: es de tu máquina, no del proyecto.
-direccion.txt
+# Your Tailscale address: it belongs to your machine, not to this project.
+address.txt
 
-# basura de macOS
+# macOS clutter
 .DS_Store

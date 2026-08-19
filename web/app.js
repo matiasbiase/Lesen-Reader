@@ -1,8 +1,9 @@
 /* lesen — frontend.
-   Regla de interacción: tocar una palabra tiene que responder YA. Por eso el
-   diccionario se pide primero y se pinta apenas llega, y el análisis del LLM
-   (que tarda unos segundos) entra después en el mismo panel, sin bloquear.
-   Regla de interfaz: si un ícono alcanza, no va texto. */
+   Interaction rule: tapping a word has to answer NOW. So the dictionary is
+   requested first and painted the moment it lands, and the LLM analysis (which
+   takes a few seconds) drops into the same panel afterwards, blocking nothing.
+   Interface rule: if an icon is enough, no text.
+   ⚠️ The user-facing strings are in Spanish on purpose — see the README. */
 
 const $ = (s) => document.querySelector(s);
 const api = async (path, body, method) => {
@@ -18,14 +19,14 @@ const svg = (d, extra = "") =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ${extra}>${d}</svg>`;
 
 const ICONS = {
-  // temas
+  // topics
   deutschland: svg(`<path d="M3 21h18M5 21V10l7-5 7 5v11M10 21v-6h4v6" stroke-linejoin="round"/>`),
   welt:        svg(`<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.4 4 5.6 4 9s-1.5 6.6-4 9c-2.5-2.4-4-5.6-4-9s1.5-6.6 4-9z"/>`),
   wirtschaft:  svg(`<path d="M3 17l5.5-5.5 3.5 3.5 8-8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" stroke-linecap="round" stroke-linejoin="round"/>`),
   wissen:      svg(`<path d="M9.5 3h5M10.5 3v6L5.6 18.6A1.6 1.6 0 007 21h10a1.6 1.6 0 001.4-2.4L13.5 9V3" stroke-linejoin="round"/>`),
   tech:        svg(`<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4" stroke-linecap="round"/>`),
   aktuell:     svg(`<path d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5z" stroke-linejoin="round"/>`),
-  // interfaz
+  // interface
   tag:      svg(`<path d="M3 12V5a2 2 0 012-2h7l9 9-9 9-9-9z" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.2"/>`),
   clock:    svg(`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2" stroke-linecap="round"/>`),
   check:    svg(`<path d="M4 12.5l5 5 11-11" stroke-linecap="round" stroke-linejoin="round"/>`),
@@ -37,28 +38,29 @@ const ICONS = {
   bookmark: svg(`<path d="M6 4h12v17l-6-4-6 4V4z" stroke-linejoin="round"/>`),
   translate:svg(`<path d="M4 6h10M9 4v2c0 4-2.2 7.5-5 9" stroke-linecap="round"/><path d="M7 12c1.6 2.4 3.8 4 6 4.8" stroke-linecap="round"/><path d="M13 20l4-9 4 9M14.6 17h4.8" stroke-linecap="round" stroke-linejoin="round"/>`),
   layers:   svg(`<path d="M12 3l9 5-9 5-9-5 9-5z" stroke-linejoin="round"/><path d="M3 13l9 5 9-5" stroke-linejoin="round"/>`),
-  // categorías gramaticales
+  // parts of speech
   sustantivo: svg(`<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10h8M8 14h5" stroke-linecap="round"/>`),
   verbo:      svg(`<path d="M5 12h9" stroke-linecap="round"/><path d="M11 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19" cy="12" r="1.4"/>`),
   adjetivo:   svg(`<path d="M12 4l2.4 5.4L20 11l-5.6 1.6L12 18l-2.4-5.4L4 11l5.6-1.6L12 4z" stroke-linejoin="round"/>`),
 };
 const posIcon = (pos) => ICONS[pos] || "";
 
-// En noticias casi todo es presente, Perfekt y Präteritum: marcarlos no aporta.
-// Solo se señala lo que se sale de eso, que es lo que da ganas de leer la nota.
+// In the news almost everything is present, Perfekt and Präteritum: marking
+// those says nothing. Only what steps outside them is flagged — which is the
+// part that makes an article worth opening.
 const COMMON = ["praesens", "perfekt", "praeteritum"];
 const rareOf = (ts) => (ts || []).filter((t) => !COMMON.includes(t));
 
-/* ---------- tema ---------- */
+/* ---------- theme ---------- */
 
 const SUN = svg(`<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6" stroke-linecap="round"/>`);
 const MOON = svg(`<path d="M20 13.4A8.2 8.2 0 1110.6 4a6.8 6.8 0 009.4 9.4z" stroke-linejoin="round"/>`);
 
-// Todo con ?. : si el HTML que el navegador tiene en caché es más viejo que
-// este script, el botón puede no existir. Sin las guardas, un `null.innerHTML`
-// tira TypeError acá arriba y aborta el archivo entero: no se enganchan las
-// pestañas, no se cargan las noticias, la pantalla queda muerta. Un detalle
-// cosmético como el tema no puede tener el poder de voltear la app.
+// Everything with ?. : if the HTML the browser cached is older than this
+// script, the button may not exist. Without the guards a `null.innerHTML`
+// throws a TypeError up here and aborts the whole file — tabs never bind, news
+// never loads, the screen is dead. Something cosmetic like the theme must not
+// have the power to take the app down.
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem("lesen-theme", t); } catch (e) {}
@@ -68,7 +70,7 @@ function applyTheme(t) {
     btn.innerHTML = dark ? SUN : MOON;
     btn.setAttribute("aria-label", dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
   }
-  // sin esto la barra de estado de iOS queda del color del tema anterior
+  // without this the iOS status bar keeps the previous theme's colour
   $("#theme-color")?.setAttribute("content", dark ? "#14130f" : "#faf8f4");
   document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
     ?.setAttribute("content", dark ? "black-translucent" : "default");
@@ -88,7 +90,7 @@ const S = {
   filter: "todas", queue: [], qi: 0, revealed: false,
 };
 
-/* ---------- navegación ---------- */
+/* ---------- navigation ---------- */
 
 function show(v) {
   document.querySelectorAll(".view").forEach((s) => s.classList.remove("on"));
@@ -106,7 +108,7 @@ function show(v) {
 document.querySelectorAll(".tab").forEach((t) => t.onclick = () => show(t.dataset.v));
 $("#back").onclick = () => show("feed");
 
-/* ---------- temas e intereses ---------- */
+/* ---------- topics and interests ---------- */
 
 async function loadTopics() {
   const { topics } = await api("/topics");
@@ -158,7 +160,7 @@ function renderTenseFilter() {
   });
 }
 
-/* ---------- noticias ---------- */
+/* ---------- news ---------- */
 
 async function loadHeadlines() {
   $("#list").innerHTML = `<div class="spinner"></div>`;
@@ -186,7 +188,7 @@ async function loadHeadlines() {
   $("#list").querySelectorAll(".card").forEach((c) => c.onclick = () => openArticle(items[+c.dataset.i]));
 }
 
-/* ---------- lector ---------- */
+/* ---------- reader ---------- */
 
 async function openArticle(item) {
   show("read");
@@ -258,7 +260,7 @@ function tapWord(i) {
   openSheet(main);
 }
 
-/* ---------- hoja de palabra ---------- */
+/* ---------- word card ---------- */
 
 function openSheet(tok) {
   $("#scrim").classList.add("on");
@@ -274,8 +276,8 @@ function openSheet(tok) {
     S.entry = d.entry; S.savedWord = d.saved; S.sepOk = d.separable_ok;
     if (d.lemma) S.sel.tok = { ...S.sel.tok, lemma: d.lemma };
     if (d.entry?.senses?.length) S.chosen = d.entry.senses[0].n;
-    // Si la detección de separable no se confirmó, apago el resaltado del par:
-    // no quiero mostrar una Satzklammer que no existe.
+    // If the separable detection wasn't confirmed, the pair highlight goes off:
+    // no showing a Satzklammer that doesn't exist.
     if (tok.separable?.split && !d.separable_ok) {
       document.querySelectorAll(".w.pair").forEach((e) => e.classList.remove("pair"));
       document.querySelector(`.w[data-i="${tok.i}"]`)?.classList.add("sel");
@@ -326,8 +328,8 @@ function renderSheet(o) {
     </div>`;
   }
 
-  // Bloque gramatical: sale de spaCy y las reglas, no del modelo. Solo se
-  // muestra una vez que el diccionario confirmó que el verbo existe de verdad.
+  // The grammar block: it comes from spaCy and the rules, never the model. It
+  // only shows once the dictionary has confirmed the verb actually exists.
   if (sep?.is_separable && S.sepOk) {
     h += `<div class="sep">
       <div class="split"><b>${esc(sep.prefix)}</b>${esc(sep.stem)}</div>
@@ -418,7 +420,7 @@ async function saveWord(status, ai) {
   closeSheet();
 }
 
-/* ---------- guardadas ---------- */
+/* ---------- saved ---------- */
 
 async function loadSaved() {
   const { articles } = await api("/saved");
@@ -444,7 +446,7 @@ async function loadSaved() {
   });
 }
 
-/* ---------- vocabulario ---------- */
+/* ---------- vocabulary ---------- */
 
 async function loadVocab() {
   const { words, stats } = await api("/vocab?status=" + S.filter);
@@ -470,7 +472,7 @@ async function loadVocab() {
   });
 }
 
-/* ---------- repaso ---------- */
+/* ---------- review ---------- */
 
 async function loadStudy() {
   const { words } = await api("/study");
@@ -513,19 +515,19 @@ async function grade(w, ok) {
   renderStudy();
 }
 
-/* ---------- utilidades ---------- */
+/* ---------- helpers ---------- */
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-// negritas de las reglas gramaticales: el texto es nuestro, no del usuario
+// bold in the grammar rules: that text is ours, never the user's
 function md(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>"); }
 
-/* ---------- red de seguridad ----------
-   Si algo revienta al arrancar, antes quedaba una pantalla en blanco sin
-   ninguna pista. Ahora se ve qué pasó y hay un botón para recargar salteando
-   la caché, que es la causa más común (HTML viejo + script nuevo). */
+/* ---------- safety net ----------
+   If something blew up on startup, what you used to get was a blank screen with
+   no clue at all. Now you see what happened, and there's a button to reload past
+   the cache — which is the commonest cause (old HTML + new script). */
 
 function fatal(msg) {
   const box = document.createElement("div");

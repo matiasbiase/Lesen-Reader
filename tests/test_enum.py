@@ -1,10 +1,10 @@
 """
-Segunda vuelta: el modelo chico entendía bien y solo erraba el formato.
+Round two: the small model understood fine and only got the format wrong.
 
-Acá se le da un ESQUEMA DE ENUMERACIÓN: la respuesta solo puede ser uno de los
-números de acepción válidos. Es lo mismo que hace la generación guiada de
-Apple (@Generable con un enum de Swift): el formato deja de ser posible de
-errar y queda medida la comprensión sola.
+Here it's given an ENUM SCHEMA: the answer can only be one of the valid sense
+numbers. It's the same thing Apple's guided generation does (@Generable with a
+Swift enum): the format stops being possible to get wrong, and what's left
+measured is comprehension on its own.
 """
 import json, sys, time, urllib.request
 
@@ -36,7 +36,7 @@ def preguntar(modelo, word, sentence, lemma, senses):
               f"Palabra tocada: «{word}» (lema: {lemma})\n\n"
               f"Acepciones del diccionario:\n{listado}\n\n"
               f"¿Cuál acepción aplica en ESTA oración? Respondé solo con su número.")
-    # el enum es la clave: el modelo no puede devolver otra cosa
+    # the enum is the whole point: the model cannot return anything else
     schema = {"type": "object",
               "properties": {"sense": {"type": "string", "enum": validos}},
               "required": ["sense"]}

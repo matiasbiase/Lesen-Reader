@@ -1,10 +1,9 @@
 """
-Genera los íconos de la app. Se corre a mano, una sola vez:
+Generates the app icons. Run by hand, once:
     ./.venv/bin/python backend/make_icons.py
 
-El ícono es la marca de la app: una "l" en serif sobre papel, tachada por el
-trazo de fibrón al bies — el mismo gesto que hace la app cuando guardás una
-palabra.
+The icon is the app's mark: a serif "l" on paper, struck through by a marker
+stroke on the diagonal — the same gesture the app makes when you save a word.
 """
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -36,7 +35,7 @@ def make(size: int, maskable: bool = False) -> Image.Image:
     img = Image.new("RGB", (size, size), PAPER)
     d = ImageDraw.Draw(img, "RGBA")
 
-    # el trazo del fibrón, en diagonal como en la app
+    # the marker stroke, on the diagonal like in the app
     pad = size * (0.22 if maskable else 0.14)
     h = size * 0.30
     y = size * 0.545
@@ -44,7 +43,7 @@ def make(size: int, maskable: bool = False) -> Image.Image:
                (size - pad, y + h / 2 - size * 0.018), (pad, y + h / 2 + size * 0.022)],
               fill=MARKER + (215,))
 
-    # la "l" de lesen
+    # the "l" of lesen
     f = font_at(int(size * (0.5 if maskable else 0.62)))
     box = d.textbbox((0, 0), "l", font=f)
     d.text(((size - (box[2] - box[0])) / 2 - box[0],
@@ -60,8 +59,8 @@ if __name__ == "__main__":
         make(size, mask).save(WEB / name)
         print("→", WEB / name)
 
-    # iOS pide estos dos en la raíz aunque el <link> apunte a otro lado, y
-    # Safari pide favicon.ico. Sin ellos son tres 404 en cada visita.
+    # iOS asks for these two at the root even when the <link> points elsewhere,
+    # and Safari asks for favicon.ico. Without them that's three 404s a visit.
     root = WEB.parent
     icon180 = make(180)
     for name in ("apple-touch-icon.png", "apple-touch-icon-precomposed.png"):

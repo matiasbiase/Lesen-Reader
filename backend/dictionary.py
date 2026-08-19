@@ -1,10 +1,12 @@
 """
-Wiktionary alemán -> significados en español, separados por acepción.
+German Wiktionary -> Spanish meanings, split sense by sense.
 
-El de.wiktionary trae las traducciones agrupadas por número de acepción
-({{Ü-Tabelle|1|G=...}}), así que se puede devolver "sentido 1 = levantarse,
-sentido 2 = estar de pie" en vez de una lista plana. Eso es justo lo que
-después le damos al LLM para que elija cuál aplica, en vez de dejarlo inventar.
+de.wiktionary groups its translations by sense number ({{Ü-Tabelle|1|G=...}}),
+so what comes back can be "sense 1 = levantarse, sense 2 = estar de pie" rather
+than one flat list. That grouping is exactly what the model is handed later, so
+it picks which sense applies instead of being free to invent one.
+
+⚠️ The glosses are Spanish because the reader is: see the note in the README.
 """
 import logging
 import re
@@ -14,9 +16,9 @@ from functools import lru_cache
 log = logging.getLogger("lesen.dict")
 
 API = "https://de.wiktionary.org/w/api.php"
-# Wikimedia devuelve 403 si el User-Agent no es descriptivo y no trae un enlace
-# de contacto (su política de bots). Además tiene que ser ASCII puro: las
-# cabeceras HTTP no admiten acentos.
+# Wikimedia returns 403 if the User-Agent isn't descriptive and doesn't carry a
+# contact link (their bot policy). It also has to be pure ASCII: HTTP headers
+# don't take accented characters.
 UA = "lesen/1.0 (personal offline German reader; https://de.wiktionary.org/wiki/Hilfe:API)"
 
 
@@ -33,14 +35,14 @@ def _fetch_wikitext(title: str) -> str | None:
             return None
         return data["parse"]["wikitext"]
     except Exception as e:
-        # Nada de fallar en silencio: un 403 o una cabecera mal armada tiene que
-        # verse en consola, no disfrazarse de "palabra sin entrada".
+        # No failing quietly: a 403 or a malformed header has to show up in the
+        # console, not disguise itself as "word with no entry".
         log.warning("Wiktionary '%s' falló: %s: %s", title, type(e).__name__, e)
         return None
 
 
 def _clean(s: str) -> str:
-    """Saca el marcado de wiki y deja texto legible."""
+    """Strips the wiki markup and leaves readable text."""
     s = re.sub(r"\{\{K\|([^}]*)\}\}", lambda m: m.group(1).split("|")[0] + ":", s)
     s = re.sub(r"\[\[([^\]|]*)\|([^\]]*)\]\]", r"\2", s)
     s = re.sub(r"\[\[([^\]]*)\]\]", r"\1", s)
@@ -51,7 +53,7 @@ def _clean(s: str) -> str:
 
 
 def _numbered(block: str) -> dict[str, list[str]]:
-    """Parsea líneas del tipo ':[1] texto' -> {'1': [texto, ...]}"""
+    """Parses lines shaped ':[1] text' -> {'1': [text, ...]}"""
     out: dict[str, list[str]] = {}
     for line in block.split("\n"):
         line = line.strip()
@@ -71,14 +73,14 @@ def _numbered(block: str) -> dict[str, list[str]]:
 
 
 def _section(wikitext: str, name: str) -> str:
-    """Devuelve el bloque que sigue a {{Nombre}} hasta el próximo {{...}} de nivel."""
+    """Returns the block after {{Name}} up to the next {{...}} at that level."""
     m = re.search(r"\{\{" + name + r"\}\}(.*?)(?=\n\{\{[A-ZÄÖÜ][^}]*\}\}|\n==|\Z)",
                   wikitext, re.S)
     return m.group(1) if m else ""
 
 
 def _spanish_by_sense(wikitext: str) -> dict[str, list[str]]:
-    """De cada {{Ü-Tabelle|N|...}} extrae las traducciones al español."""
+    """Pulls the Spanish translations out of each {{Ü-Tabelle|N|...}}."""
     out: dict[str, list[str]] = {}
     for m in re.finditer(r"\{\{Ü-Tabelle\|([^|]*)\|(.*?)(?=\n\{\{Ü-Tabelle|\n==|\Z)",
                          wikitext, re.S):
@@ -87,7 +89,7 @@ def _spanish_by_sense(wikitext: str) -> dict[str, list[str]]:
         for line in body.split("\n"):
             if not re.match(r"\*+\s*\{\{es\}\}", line.strip()):
                 continue
-            # {{Ü|es|palabra}} y {{Üt|es|palabra|translit}}
+            # {{Ü|es|word}} and {{Üt|es|word|translit}}
             for w in re.findall(r"\{\{Üt?\??\|es\|([^|}]+)", line):
                 w = w.strip()
                 if w and w not in words:
@@ -104,7 +106,7 @@ def _spanish_by_sense(wikitext: str) -> dict[str, list[str]]:
 @lru_cache(maxsize=8192)
 def lookup(lemma: str) -> dict | None:
     """
-    Busca un lema y devuelve sus acepciones con traducción al español.
+    Looks a lemma up and returns its senses with their Spanish glosses.
 
     {"lemma", "pos", "senses":[{"n","de","es":[...],"examples":[...]}], "extra"}
     """
@@ -112,7 +114,7 @@ def lookup(lemma: str) -> dict | None:
     if not wt:
         return None
 
-    # Quedarse solo con la parte alemana de la página
+    # Keep only the German part of the page
     m = re.search(r"==\s*" + re.escape(lemma) + r"\s*\(\{\{Sprache\|Deutsch\}\}\)\s*==(.*?)(?=\n==\s*\S+\s*\(\{\{Sprache\||\Z)", wt, re.S)
     de = m.group(1) if m else wt
 
@@ -154,23 +156,23 @@ def lookup(lemma: str) -> dict | None:
 
 @lru_cache(maxsize=8192)
 def is_verb(lemma: str) -> bool:
-    """¿Existe como verbo? Se usa para no inventar verbos separables."""
+    """Does it exist as a verb? Used to avoid inventing separable verbs."""
     e = lookup(lemma)
     return bool(e and "Verb" in (e.get("pos") or ""))
 
 
 def confirm_separable(sep: dict) -> bool:
     """
-    Verifica una detección de verbo separable antes de mostrarla.
+    Checks a separable-verb detection before it gets shown.
 
-    Hace falta porque las dos vías de detección producen falsos positivos:
-      - Partir el lema por prefijo casa de más: 'einigen' -> 'ein'+'igen',
-        pero 'igen' no es un verbo, así que 'einigen' NO es separable.
-      - spaCy a veces marca svp sobre un predicativo: en 'die Zahl liegt hoch'
-        etiqueta 'hoch' como partícula e inventa 'hochliegen', que no existe.
+    Needed because both detection paths throw false positives:
+      - Splitting the lemma by prefix matches too eagerly: 'einigen' ->
+        'ein'+'igen', but 'igen' isn't a verb, so 'einigen' is NOT separable.
+      - spaCy sometimes marks svp on a predicative: in 'die Zahl liegt hoch' it
+        tags 'hoch' as a particle and invents 'hochliegen', which doesn't exist.
 
-    Regla: si la partícula está suelta, el verbo reconstruido tiene que existir;
-    si está pegada, el que tiene que existir es la raíz sin prefijo.
+    The rule: if the particle is detached, the rebuilt verb has to exist; if
+    it's attached, what has to exist is the stem without the prefix.
     """
     if not sep or not sep.get("is_separable"):
         return False

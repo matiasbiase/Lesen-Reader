@@ -1,9 +1,12 @@
 """
-Guardado de vocabulario en SQLite.
+Vocabulary storage, in SQLite.
 
-El modelo de estado sale de Lute: cada palabra tiene un estado que te sigue en
-todos los textos. Acá son 3 (nueva / aprendiendo / sabida) más un repaso
-espaciado simple, para que la carpeta de palabras no sea solo una lista muerta.
+The state model comes from Lute: every word carries a status that follows you
+across every text. Here there are 3 of them (nueva / aprendiendo / sabida) plus
+plain spaced review, so the word folder isn't just a dead list.
+
+⚠️ Those three status values are stored strings, not labels: they're written to
+the database and read by `web/app.js`. Renaming them is a migration.
 """
 import json
 import sqlite3
@@ -12,8 +15,8 @@ from pathlib import Path
 
 DB = Path(__file__).resolve().parent.parent / "data" / "lesen.db"
 
-# Intervalos de repaso en días. Cada acierto sube un escalón, cada fallo
-# vuelve al principio. Es Leitner, no SM-2: alcanza y se entiende.
+# Review intervals in days. A hit moves up a step, a miss goes back to the
+# start. It's Leitner, not SM-2: enough, and you can explain it in one line.
 STEPS = [0, 1, 3, 7, 16, 35, 90]
 DAY = 86400
 
@@ -110,7 +113,7 @@ def list_words(status: str | None = None) -> list[dict]:
 
 
 def statuses() -> dict[str, str]:
-    """Mapa lema -> estado, para pintar el artículo de un saque."""
+    """Map of lemma -> status, to paint a whole article in one pass."""
     with conn() as c:
         return {r["lemma"]: r["status"] for r in c.execute("SELECT lemma, status FROM words")}
 

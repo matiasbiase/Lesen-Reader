@@ -1,11 +1,11 @@
 """
-Servidor de lesen.
+The lesen server.
 
-Separa a propósito dos rutas para el toque de una palabra:
-  /api/word    -> rápido (spaCy + Wiktionary). Es lo que ves al instante.
-  /api/context -> lento (Ollama, ~4s). Llega después y completa la ficha.
+Tapping a word deliberately goes down two separate routes:
+  /api/word    -> fast (spaCy + Wiktionary). This is what you see instantly.
+  /api/context -> slow (Ollama, ~4s). Arrives after, and fills in the card.
 
-Esa división existe porque el LLM local tarda demasiado para bloquear un toque.
+The split exists because the local LLM is far too slow to block a tap on.
 """
 import logging
 from pathlib import Path
@@ -28,20 +28,20 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 
 app = FastAPI(title="lesen")
 
-# ── SIN CORS, Y ESO ES EL ARREGLO ────────────────────────────────────────────
+# ── NO CORS, AND THAT IS THE FIX ─────────────────────────────────────────────
 #
-# Acá había `CORSMiddleware(allow_origins=["*"])`, que le decía al navegador
-# "cualquier página del mundo puede hacerme pedidos". Como el server no tiene
-# login, eso significaba que **cualquier sitio que abrieras en otra pestaña
-# podía leer tus palabras y tus notas** pidiéndoselas a localhost:8777 mientras
-# lesen estuviera corriendo.
+# There used to be a `CORSMiddleware(allow_origins=["*"])` here, telling the
+# browser "any page in the world may make requests to me". Since this server has
+# no login, that meant **any site you opened in another tab could read your
+# words and your saved articles** by asking localhost:8777 for them, for as long
+# as lesen was running.
 #
-# 👉 Y no habilitaba nada: la web la sirve este mismo server y `app.js` pide
-# siempre `/api/...` en relativo, así que los pedidos son del mismo origen y el
-# navegador ni consulta CORS. Estaba abierto sin que nadie lo usara.
+# 👉 And it enabled nothing: this same server serves the web app, and `app.js`
+# always asks for `/api/...` relatively, so the requests are same-origin and the
+# browser never consults CORS at all. It was open with nobody using it.
 #
-# ⚠️ Si algún día servís la web desde otro lado, esto vuelve — pero con la
-# lista de orígenes escrita, nunca con `*`.
+# ⚠️ If the frontend is ever served from somewhere else this comes back — but
+# with the origins spelled out, never with `*`.
 
 
 @app.on_event("startup")
@@ -51,7 +51,7 @@ def _startup():
     log.info("spaCy listo · Ollama %s", "OK" if llm.available() else "NO DISPONIBLE")
 
 
-# ---------- noticias ----------
+# ---------- news ----------
 
 @app.get("/api/topics")
 def topics():
@@ -74,9 +74,9 @@ def headlines(topics: str = "", interests: str = "", tenses: str = ""):
 
     items = news.headlines(t, i)
 
-    # Perfil de tiempos verbales del titular + copete. Es una muestra, no el
-    # artículo entero, pero alcanza para encontrar las notas que se salen del
-    # presente/Perfekt de siempre.
+    # Tense profile over headline + standfirst. It's a sample, not the whole
+    # article, but it's enough to find the pieces that step outside the usual
+    # present/Perfekt.
     profiles = german.tense_profiles([f"{x['title']}. {x['summary']}" for x in items])
     for it, p in zip(items, profiles):
         it["tenses"] = p
@@ -93,8 +93,8 @@ class UrlIn(BaseModel):
 
 @app.post("/api/article")
 def article(inp: UrlIn):
-    # Si ya está guardada, se lee de la base: instantáneo y sigue disponible
-    # aunque el diario la haya bajado.
+    # If it's already saved, it's read from the database: instant, and still
+    # there even after the newspaper takes it down.
     cached = store.get_article(inp.url)
     if cached and cached.get("text"):
         art = {"url": inp.url, "title": cached["title"], "text": cached["text"],
@@ -117,13 +117,13 @@ class TextIn(BaseModel):
 
 @app.post("/api/analyze")
 def analyze(inp: TextIn):
-    """Para pegar un texto propio: un mail del laburo, una carta del Amt."""
+    """For pasting your own text: a work email, a letter from the Amt."""
     an = german.analyze(inp.text)
     return {"url": "", "title": inp.title, "text": inp.text,
             "n_chars": len(inp.text), **an, "statuses": store.statuses()}
 
 
-# ---------- toque de palabra ----------
+# ---------- tapping a word ----------
 
 class WordIn(BaseModel):
     word: str
@@ -135,17 +135,18 @@ class WordIn(BaseModel):
 
 @app.post("/api/word")
 def word(inp: WordIn):
-    """Camino rápido: diccionario, sin LLM. Responde en el acto."""
+    """The fast path: dictionary, no LLM. Answers on the spot."""
     entry = dictionary.lookup(inp.lemma)
     if not entry and inp.lemma != inp.word:
         entry = dictionary.lookup(inp.word)
-    # La detección de separables se confirma contra el diccionario antes de
-    # mostrarla: spaCy y el corte por prefijo dan falsos positivos ('einigen',
-    # 'hochliegen') y no quiero enseñarle al usuario una regla que no existe.
+    # Separable detection is confirmed against the dictionary before it's shown:
+    # spaCy and the prefix split both produce false positives ('einigen',
+    # 'hochliegen'), and teaching the reader a rule that doesn't exist is worse
+    # than teaching nothing.
     sep_ok = dictionary.confirm_separable(inp.separable) if inp.separable else False
 
-    # Si era falso positivo, el lema reconstruido tampoco sirve para buscar
-    # ('hochliegen' no está en ningún lado): hay que caer a la raíz real.
+    # If it was a false positive the rebuilt lemma is no good for lookup either
+    # ('hochliegen' isn't anywhere): fall back to the real stem.
     lemma = inp.lemma
     if inp.separable and not sep_ok:
         stem = inp.separable.get("stem", "")
@@ -161,7 +162,7 @@ def word(inp: WordIn):
 
 @app.post("/api/context")
 def context(inp: WordIn):
-    """Camino lento: el LLM elige la acepción que aplica y arma un ejemplo."""
+    """The slow path: the LLM picks the sense that applies and writes an example."""
     if not llm.available():
         return {"error": "Ollama no responde. Levantalo con: ollama serve"}
     entry = dictionary.lookup(inp.lemma)
@@ -169,9 +170,9 @@ def context(inp: WordIn):
         out = llm.pick_sense(inp.word, inp.sentence, inp.lemma, entry["senses"])
         if out:
             sense = next((s for s in entry["senses"] if s["n"] == out["sense"]), None)
-            # El ejemplo generado se valida antes de mostrarlo: con verbos
-            # separables el modelo escribe cosas como «hängt vom Wetter
-            # abhängen», y un ejemplo mal escrito es peor que ninguno.
+            # The generated example is validated before it's shown: with
+            # separable verbs the model writes things like «hängt vom Wetter
+            # abhängen», and a malformed example is worse than none.
             ej_de, ej_es = out.get("ejemplo_de", ""), out.get("ejemplo_es", "")
             ok = german.check_example(ej_de, inp.lemma) if ej_de else False
             if not ok:
@@ -182,8 +183,8 @@ def context(inp: WordIn):
                     "es": out["es"], "porque": out["porque"],
                     "ejemplo_de": ej_de, "ejemplo_es": ej_es,
                     "ejemplo_ok": ok,
-                    # Ejemplos reales del diccionario para la acepción elegida:
-                    # están bien escritos por definición.
+                    # Real dictionary examples for the chosen sense: correct by
+                    # definition.
                     "ejemplos_dict": sense["examples"] if sense else []}
     out = llm.explain_free(inp.word, inp.sentence, inp.lemma)
     if not out:
@@ -202,7 +203,7 @@ def translate(inp: SentIn):
     return {"es": llm.translate_sentence(inp.sentence)}
 
 
-# ---------- vocabulario ----------
+# ---------- vocabulary ----------
 
 class SaveIn(BaseModel):
     lemma: str
@@ -247,7 +248,7 @@ def remove(lemma: str):
     return {"ok": True}
 
 
-# ---------- noticias guardadas ----------
+# ---------- saved articles ----------
 
 class SaveArtIn(BaseModel):
     url: str
@@ -281,7 +282,7 @@ def unsave(url: str):
     return {"ok": True}
 
 
-# ---------- repaso ----------
+# ---------- review ----------
 
 @app.get("/api/study")
 def study(limit: int = 20):
@@ -298,7 +299,7 @@ def do_review(inp: ReviewIn):
     return {"word": store.review(inp.lemma, inp.ok)}
 
 
-# ---------- preferencias ----------
+# ---------- preferences ----------
 
 class PrefsIn(BaseModel):
     topics: list[str] = []
@@ -321,10 +322,10 @@ def health():
     return {"spacy": True, "ollama": llm.available(), "stats": store.stats()}
 
 
-# ---------- estáticos ----------
+# ---------- static files ----------
 
 def _assets_version() -> str:
-    """Huella de los estáticos, para invalidar la caché cuando cambian."""
+    """Fingerprint of the static files, to bust the cache when they change."""
     stamp = 0.0
     for f in ("app.js", "styles.css"):
         try:
@@ -337,13 +338,12 @@ def _assets_version() -> str:
 @app.get("/")
 def index():
     """
-    El HTML se sirve sin cachear y con la versión de los estáticos pegada a
-    cada <link>/<script>.
+    The HTML is served uncached, with the static files' version pinned onto
+    every <link>/<script>.
 
-    Sin esto, Safari se quedaba con el index.html viejo y bajaba el app.js
-    nuevo. La mezcla rompía la app entera (un botón que el script esperaba no
-    existía en el HTML cacheado) y desde el teléfono se veía como si el
-    servidor se hubiera caído.
+    Without this, Safari would hold on to the old index.html and fetch the new
+    app.js. The mix broke the whole app (a button the script expected wasn't in
+    the cached HTML) and from the phone it looked like the server had died.
     """
     html = (WEB / "index.html").read_text(encoding="utf-8")
     v = _assets_version()

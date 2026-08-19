@@ -1,13 +1,16 @@
 """
-¿Alcanza un modelo chico —del tamaño del que corre en el iPhone— para la
-tarea semántica de lesen?
+Is a small model — the size of the one that runs on an iPhone — enough for
+lesen's semantic task?
 
-El modelo de Apple en el dispositivo es de ~3B. Acá se comparan 1.7B y 3B
-contra el 12B que corre hoy en la Mac, en la tarea real: elegir cuál acepción
-del diccionario aplica en una oración concreta.
+Apple's on-device model is ~3B. This compares 1.7B and 3B against the 12B that
+runs on the Mac today, on the real task: picking which dictionary sense applies
+in a concrete sentence.
 
-Es una tarea de opción múltiple, no de generación libre. La hipótesis es que
-justamente por eso un modelo chico alcanza.
+It's multiple choice, not free generation. The hypothesis is that this is
+exactly why a small model can be enough.
+
+⚠️ The prompt below stays in Spanish: it's the real one, and changing it would
+stop measuring the real thing.
 """
 import json, sys, time, urllib.request
 
@@ -22,7 +25,7 @@ SCHEMA = {
     "required": ["sense", "es"],
 }
 
-# (oración, palabra, lema, acepción correcta según el diccionario)
+# (sentence, word, lemma, correct sense according to the dictionary)
 CASOS = [
     ("Das Unternehmen hat die Produktion vergangene Woche eingestellt.",
      "eingestellt", "einstellen", "4", "suspender"),

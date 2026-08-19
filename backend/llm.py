@@ -1,12 +1,16 @@
 """
-Capa semántica: Ollama (gemma4:12b) local.
+The meaning layer: a local Ollama (gemma4:12b).
 
-Regla de diseño, sacada de probar el modelo: gemma es bueno decidiendo QUÉ
-significa una palabra en una frase concreta, y malo explicando gramática
-alemana (llegó a decir que 'einstellen' no es separable y a inventar un
-prefijo 'in-'). Así que acá NUNCA se le pregunta gramática — eso ya lo
-resolvió spaCy — y cuando hay entrada de Wiktionary se le pide que ELIJA
-entre las acepciones existentes en vez de escribir una nueva.
+Design rule, and it came out of testing the model: gemma is good at deciding
+WHICH sense a word carries in a concrete sentence, and bad at explaining German
+grammar (it went as far as claiming 'einstellen' isn't separable, and inventing
+an 'in-' prefix). So grammar is NEVER asked here — spaCy already settled it —
+and when there's a Wiktionary entry the model is asked to PICK among the senses
+that exist instead of writing a new one.
+
+⚠️ The prompts below stay in Spanish on purpose. They are not comments: they
+are the product. What comes back is what the reader reads, and this is a German
+reader written for Spanish speakers — see the note in the README.
 """
 import json
 import logging
@@ -17,7 +21,9 @@ log = logging.getLogger("lesen.llm")
 OLLAMA = "http://localhost:11434"
 MODEL = "gemma4:12b"
 
-# Elegir acepción: respuesta corta y cerrada, así sale rápido.
+# Picking a sense: a short, closed answer, so it comes back fast.
+# ⚠️ The keys (`porque`, `ejemplo_de`…) are the contract with the frontend:
+# renaming them here breaks `web/app.js`.
 PICK_SCHEMA = {
     "type": "object",
     "properties": {
@@ -52,7 +58,7 @@ def _call(prompt: str, schema: dict, num_predict: int = 320) -> dict | None:
         r.raise_for_status()
         return json.loads(r.json()["response"])
     except Exception as e:
-        log.warning("ollama falló: %s: %s", type(e).__name__, e)
+        log.warning("ollama failed: %s: %s", type(e).__name__, e)
         return None
 
 
@@ -65,10 +71,10 @@ def available() -> bool:
 
 def pick_sense(word: str, sentence: str, lemma: str, senses: list[dict]) -> dict | None:
     """
-    Elige cuál de las acepciones de Wiktionary aplica en esta oración.
+    Picks which of Wiktionary's senses applies in this sentence.
 
-    Se le pasan las acepciones numeradas y devuelve el número, no texto libre.
-    Así el significado que ve el usuario viene siempre de un diccionario real.
+    The senses go in numbered and what comes back is the number, not free text.
+    That way the meaning the reader sees always comes from a real dictionary.
     """
     listado = "\n".join(
         f"  [{s['n']}] {s['de']}" + (f"  -> es: {', '.join(s['es'])}" if s["es"] else "")
@@ -93,10 +99,10 @@ No expliques gramática. No inventes acepciones."""
     out = _call(prompt, PICK_SCHEMA)
     if not out:
         return None
-    # Validar que el número exista de verdad; si alucinó, caemos a la primera.
+    # Check the number actually exists; if it hallucinated, fall back to the first.
     valid = {s["n"] for s in senses}
     if out.get("sense") not in valid:
-        log.info("sentido '%s' fuera de rango para %s", out.get("sense"), lemma)
+        log.info("sense '%s' out of range for %s", out.get("sense"), lemma)
         out["sense"] = senses[0]["n"]
         out["porque"] = out.get("porque", "")
     return out
@@ -104,9 +110,9 @@ No expliques gramática. No inventes acepciones."""
 
 def explain_free(word: str, sentence: str, lemma: str) -> dict | None:
     """
-    Sin entrada de diccionario. Pasa mucho con los compuestos del alemán
-    (Inflationsbekämpfung, Fachkräftemangel), que Wiktionary no lista pero
-    el modelo descompone bien.
+    No dictionary entry. Happens constantly with German compounds
+    (Inflationsbekämpfung, Fachkräftemangel), which Wiktionary doesn't list but
+    the model takes apart well.
     """
     prompt = f"""Sos profesor de alemán para un hispanohablante.
 
@@ -127,7 +133,7 @@ No expliques gramática."""
 
 
 def translate_sentence(sentence: str) -> str | None:
-    """Traducción de la oración entera, para cuando se pierde el hilo."""
+    """The whole sentence translated, for when you lose the thread."""
     out = _call(
         f"Traducí esta oración del alemán al español, natural y fiel. "
         f"Devolvé solo la traducción.\n\n«{sentence}»",

@@ -1,44 +1,45 @@
 #!/bin/bash
-# Levanta lesen.
+# Starts lesen.
 #
 #   ./run.sh              normal
-#   ./run.sh --despierta  además impide que la Mac se duerma mientras corre
+#   ./run.sh --despierta  also keeps the Mac awake while it runs
 #
-# Desde el celu entrás por Tailscale. Tu dirección es tuya y no va al repo:
-# ponela en `direccion.txt` (está en .gitignore) y se muestra al arrancar.
+# From the phone you get in over Tailscale. Your address is yours and doesn't go
+# in the repo: put it in `address.txt` (it's in .gitignore) and it gets printed
+# on startup.
 #
-# OJO: con batería esta Mac se suspende al minuto de inactividad, y dormida
-# no hay servidor que valga. Para leer desde el teléfono, tenela enchufada
-# (enchufada no se duerme) o usá --despierta.
+# CAREFUL: on battery a Mac suspends after a minute idle, and asleep there is no
+# server to speak of. To read from the phone, keep it plugged in (plugged in it
+# never sleeps) or use --despierta.
 cd "$(dirname "$0")"
 
 if ! curl -s -m 3 http://localhost:11434/api/tags > /dev/null; then
-  echo "⚠️  Ollama no responde. Abrilo o corré:  ollama serve"
-  echo "    (la app funciona igual, pero sin el análisis en contexto)"
+  echo "⚠️  Ollama is not answering. Open it, or run:  ollama serve"
+  echo "    (the app still works, just without the in-context analysis)"
   echo
 fi
 
-# Si el puerto quedó tomado de una corrida anterior, lo libero.
+# If the port was left taken by an earlier run, free it.
 if lsof -ti:8777 > /dev/null 2>&1; then
-  echo "· liberando el puerto 8777"
+  echo "· freeing port 8777"
   lsof -ti:8777 | xargs kill 2>/dev/null
   sleep 1
 fi
 
-PREFIJO=()
+PREFIX=()
 if [ "$1" = "--despierta" ]; then
-  # -i impide la suspensión por inactividad; -m que se duerman los discos.
-  # Solo mientras el servidor corre: al cortarlo, la Mac vuelve a lo de antes.
-  PREFIJO=(caffeinate -i -m)
-  echo "· la Mac no se va a dormir mientras esto corra (gasta más batería)"
+  # -i blocks idle sleep; -m stops the disks spinning down.
+  # Only while the server runs: kill it and the Mac goes back to normal.
+  PREFIX=(caffeinate -i -m)
+  echo "· the Mac will not sleep while this runs (costs battery)"
 fi
 
 echo "→ http://localhost:8777"
-if [ -f direccion.txt ]; then
-  echo "→ $(cat direccion.txt)  (desde el celu, por Tailscale)"
+if [ -f address.txt ]; then
+  echo "→ $(cat address.txt)  (from the phone, over Tailscale)"
 else
-  echo "→ (para entrar desde el celu por Tailscale, ver el README)"
+  echo "→ (to get in from the phone over Tailscale, see the README)"
 fi
 echo
-exec "${PREFIJO[@]}" ./.venv/bin/python -m uvicorn app:app \
+exec "${PREFIX[@]}" ./.venv/bin/python -m uvicorn app:app \
   --app-dir backend --host 0.0.0.0 --port 8777

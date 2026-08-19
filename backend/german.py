@@ -1,10 +1,12 @@
 """
-Capa gramatical determinista.
+The deterministic grammar layer.
 
-Todo lo que se pueda resolver con reglas se resuelve acá, sin LLM: lema,
-categoría, y sobre todo la reconstrucción de verbos separables. Esta capa
-tiene que ser siempre correcta, porque es la que el usuario ve al instante
-cuando toca una palabra.
+Anything rules can settle is settled here, with no LLM in the loop: lemma, part
+of speech, and above all rebuilding separable verbs. This layer has to be right
+every time, because it's what the reader sees the instant a word is tapped.
+
+⚠️ The strings this module returns to the interface (the position rules) are in
+Spanish on purpose — they are what the reader reads. See the README.
 """
 from dataclasses import dataclass, asdict, field
 from functools import lru_cache
@@ -12,7 +14,7 @@ import re
 
 import spacy
 
-# Prefijos que SIEMPRE se separan. Llevan el acento y se van al final del campo verbal.
+# Prefixes that ALWAYS separate. They carry the stress and move to the end of the clause.
 SEPARABLE = {
     "ab", "an", "auf", "aus", "bei", "da", "dar", "davon", "dazu", "ein", "empor",
     "entgegen", "entlang", "fern", "fest", "fort", "gegenüber", "gleich", "her",
@@ -23,11 +25,11 @@ SEPARABLE = {
     "zurück", "zusammen",
 }
 
-# Prefijos que NUNCA se separan. Además, su Partizip II no lleva "ge-".
+# Prefixes that NEVER separate. Their Partizip II also drops the "ge-".
 INSEPARABLE = {"be", "emp", "ent", "er", "ge", "miss", "ver", "zer"}
 
-# Prefijos ambiguos: separan o no según el significado, y cambia el acento.
-# Es la trampa clásica del alemán, así que los marco aparte para poder avisar.
+# Ambiguous prefixes: they separate or not depending on the meaning, and the
+# stress moves with it. The classic German trap, kept apart so it can be flagged.
 DUAL = {
     "durch": ("durchqueren (insep.) vs. durchfahren (sep.)"),
     "über": ("übersetzen = traducir (insep.) vs. übersetzen = cruzar en barca (sep.)"),
@@ -37,9 +39,9 @@ DUAL = {
     "wider": ("widersprechen = contradecir (insep.) vs. widerspiegeln = reflejar (sep.)"),
 }
 
-# Reglas de posición. Se arman con el verbo que el usuario tocó, no con un
-# ejemplo enlatado: leer una regla sobre 'aufstehen' cuando tocaste 'abhängen'
-# obliga a traducir mentalmente y estorba más de lo que ayuda.
+# Position rules. Built around the verb that was actually tapped, never a canned
+# example: reading a rule about 'aufstehen' when you tapped 'abhängen' forces a
+# mental substitution and gets in the way more than it helps.
 def position_rule(kind: str, prefix: str, stem: str) -> str:
     p, s = f"**{prefix}**", stem
     if kind == "hauptsatz":
@@ -81,9 +83,9 @@ class Separable:
 
 
 def _split_prefix(lemma: str):
-    """Parte un lema en (prefijo, raíz) si arranca con prefijo separable."""
+    """Splits a lemma into (prefix, stem) if it starts with a separable prefix."""
     low = lemma.lower()
-    # el más largo primero, para que "zurück" gane sobre "zu"
+    # longest first, so "zurück" wins over "zu"
     for p in sorted(SEPARABLE, key=len, reverse=True):
         if low.startswith(p) and len(low) > len(p) + 2:
             return p, low[len(p):]
@@ -92,18 +94,18 @@ def _split_prefix(lemma: str):
 
 def analyze_separable(tok, doc) -> Separable:
     """
-    Decide si el token es un verbo separable y, si está partido, lo reconstruye.
+    Decides whether the token is a separable verb and, if it's split, rebuilds it.
 
-    Dos caminos:
-      1. La partícula está suelta en la oración -> spaCy la marca con dep_="svp"
-         y apunta al verbo. Es el caso de "steht ... auf".
-      2. La partícula está pegada (infinitivo, Partizip II, subordinada) -> el
-         lema de spaCy ya viene entero y solo hay que separarlo para mostrarlo.
+    Two paths:
+      1. The particle stands loose in the sentence -> spaCy marks it dep_="svp"
+         and points at the verb. That's the "steht ... auf" case.
+      2. The particle is attached (infinitive, Partizip II, subordinate clause)
+         -> spaCy's lemma already arrives whole and is only split for display.
     """
     if tok.pos_ not in ("VERB", "AUX"):
         return Separable()
 
-    # Camino 1: partícula suelta apuntando a este verbo
+    # Path 1: a loose particle pointing at this verb
     for child in tok.children:
         if child.dep_ == "svp":
             prefix = child.text.lower()
@@ -117,7 +119,7 @@ def analyze_separable(tok, doc) -> Separable:
                 display=f"{prefix}|{stem}",
             )
 
-    # Camino 2: lema ya unido; ver si empieza con prefijo separable
+    # Path 2: lemma already joined; check whether it starts with a separable prefix
     prefix, stem = _split_prefix(tok.lemma_)
     if not prefix:
         return Separable()
@@ -133,15 +135,15 @@ def analyze_separable(tok, doc) -> Separable:
 
 
 def lemma_of(tok, doc) -> str:
-    """Lema de búsqueda: para separables partidos, el verbo reconstruido."""
+    """The lemma to look up: for split separables, the rebuilt verb."""
     sep = analyze_separable(tok, doc)
     if sep.is_separable and sep.split:
         return sep.prefix + sep.stem
     return tok.lemma_
 
 
-# Categorías que vale la pena poder tocar. El resto (puntuación, números,
-# nombres propios) no aporta nada al vocabulario y ensucia el texto.
+# The parts of speech worth making tappable. The rest (punctuation, numbers,
+# proper nouns) adds nothing to a vocabulary and only clutters the text.
 CONTENT_POS = {"NOUN", "VERB", "ADJ", "ADV", "PROPN", "ADP", "AUX"}
 
 POS_ES = {
@@ -151,16 +153,16 @@ POS_ES = {
     "SCONJ": "conjunción", "NUM": "número", "PART": "partícula",
 }
 
-# Género a partir de la morfología, para mostrar der/die/das con el sustantivo.
+# Gender off the morphology, so der/die/das shows next to the noun.
 ARTICLE = {"Masc": "der", "Fem": "die", "Neut": "das"}
 
 
 def analyze(text: str) -> dict:
     """
-    Convierte un texto alemán en tokens listos para renderizar y tocar.
+    Turns a German text into tokens ready to render and tap.
 
-    Devuelve todos los tokens (incluida puntuación y espacios) para poder
-    reconstruir el texto exacto, pero solo marca `tappable` en los que valen.
+    Returns every token (punctuation and whitespace included) so the exact text
+    can be rebuilt, but only marks `tappable` on the ones worth tapping.
     """
     doc = nlp()(text)
     tokens = []
@@ -182,12 +184,12 @@ def analyze(text: str) -> dict:
             item["article"] = ARTICLE.get(g, "")
         if sep.is_separable:
             item["separable"] = asdict(sep)
-            # La partícula suelta se marca también, para poder resaltar el par
+            # The loose particle is tagged too, so the pair can be highlighted
             if sep.split:
                 item["pair_i"] = sep.particle_i
         tokens.append(item)
 
-    # Marcar las partículas sueltas para que el frontend pueda iluminar el par
+    # Tag the loose particles so the frontend can light up both halves
     by_i = {t["i"]: t for t in tokens}
     for t in tokens:
         if t.get("separable", {}).get("split"):
@@ -200,8 +202,8 @@ def analyze(text: str) -> dict:
     return {"tokens": tokens, "n_sentences": len(list(doc.sents))}
 
 
-# Tiempos y modos que se pueden reconocer con la morfología de spaCy.
-# El orden es el que se muestra en la interfaz.
+# The tenses and moods spaCy's morphology can recognise.
+# The order here is the order the interface shows them in.
 TENSES = {
     "praesens":     "Presente",
     "perfekt":      "Perfekt",
@@ -213,27 +215,27 @@ TENSES = {
     "konjunktiv2":  "Konjunktiv II",
 }
 
-# Las noticias viven en presente, Perfekt y Präteritum. Konjunktiv I aparece
-# en la cita indirecta ("der Minister sagte, die Lage sei ernst"), que es muy
-# de prensa y casi no se practica; el resto es directamente raro.
+# News lives in present, Perfekt and Präteritum. Konjunktiv I turns up in
+# reported speech ("der Minister sagte, die Lage sei ernst"), which is very much
+# a press thing and almost never drilled; the rest is plainly rare.
 COMMON_TENSES = {"praesens", "perfekt", "praeteritum"}
 
 
 def tense_profile(text: str) -> list[str]:
-    """Qué tiempos y modos aparecen en un texto."""
+    """Which tenses and moods show up in a text."""
     return _profile(nlp()(text))
 
 
 def tense_profiles(texts: list[str]) -> list[list[str]]:
-    """Versión en lote, para perfilar los titulares del feed de una pasada."""
+    """Batched version, to profile a feed's headlines in one pass."""
     return [_profile(d) for d in nlp().pipe(texts, batch_size=32)]
 
 
 def _profile(doc) -> list[str]:
     """
-    Los tiempos compuestos se arman con auxiliar + forma no finita, así que
-    primero se resuelven esos y el auxiliar se marca como consumido: si no, un
-    Perfekt contaría además como presente por culpa del "hat".
+    Compound tenses are built from auxiliary + non-finite form, so those get
+    resolved first and the auxiliary is marked as consumed: otherwise a Perfekt
+    would also count as present, on account of the "hat".
     """
     found: set[str] = set()
     consumed: set[int] = set()
@@ -244,7 +246,7 @@ def _profile(doc) -> list[str]:
         m = tok.morph.to_dict()
         tense, mood = m.get("Tense"), m.get("Mood")
 
-        # forma no finita que depende de este verbo
+        # the non-finite form hanging off this verb
         nonfin = next((c for c in tok.children
                        if c.morph.to_dict().get("VerbForm") in ("Part", "Inf")), None)
         if nonfin is None:
@@ -302,18 +304,18 @@ def check_example(sentence: str, lemma: str) -> bool:
 
     doc = nlp()(sentence)
 
-    # Caso correcto y más común: partícula suelta (Satzklammer).
+    # The correct and commonest case: a loose particle (Satzklammer).
     if any(t.dep_ == "svp" and t.text.lower() == prefix for t in doc):
         return True
 
-    enteros = [t for t in doc if t.lemma_.lower() == lemma.lower()]
-    if not enteros:
-        return True                      # el verbo no aparece: nada que objetar
+    whole = [t for t in doc if t.lemma_.lower() == lemma.lower()]
+    if not whole:
+        return True                      # the verb isn't there: nothing to object to
 
-    for t in enteros:
-        # Regido por auxiliar o modal: «wird … abhängen», «muss … aufstehen».
-        # Ojo: spaCy cuelga el modal como HIJO del infinitivo, no como head,
-        # así que hay que mirar para los dos lados.
+    for t in whole:
+        # Governed by an auxiliary or modal: «wird … abhängen», «muss … aufstehen».
+        # Careful: spaCy hangs the modal as a CHILD of the infinitive, not as its
+        # head, so both directions have to be checked.
         if t.head.pos_ == "AUX" or any(c.pos_ == "AUX" for c in t.children):
             return True
         if t.morph.to_dict().get("VerbForm") == "Part":
@@ -321,20 +323,21 @@ def check_example(sentence: str, lemma: str) -> bool:
         if any(c.text.lower() == "zu" for c in t.children):
             return True                  # «abzuhängen»
 
-    # Queda el verbo entero sin nada que lo rija. Si además hay un verbo
-    # conjugado con la raíz sola, es el error del modelo: conjugó la raíz Y
-    # dejó el infinitivo colgado. No se puede confiar como material de estudio.
+    # What's left is the whole verb with nothing governing it. If there's also a
+    # conjugated verb built on the bare stem, that's the model's mistake: it
+    # conjugated the stem AND left the infinitive dangling. Not something to
+    # trust as study material.
     #
-    # No se mira VerbForm porque spaCy etiqueta «abhängen» como finito en la
-    # oración mal formada — el infinitivo y la 3ª del plural son idénticos.
+    # VerbForm isn't consulted because spaCy tags «abhängen» as finite in the
+    # malformed sentence — the infinitive and the 3rd person plural are identical.
     if any(t.pos_ in ("VERB", "AUX") and t.lemma_.lower() == stem.lower() for t in doc):
         return False
 
-    return True                          # verbo entero al final de subordinada
+    return True                          # whole verb at the end of a subordinate clause
 
 
 @lru_cache(maxsize=4096)
 def quick_lemma(word: str) -> str:
-    """Lema de una palabra suelta, sin contexto. Para la vista de estudio."""
+    """Lemma of a word on its own, with no context. For the study view."""
     doc = nlp()(word)
     return doc[0].lemma_ if len(doc) else word

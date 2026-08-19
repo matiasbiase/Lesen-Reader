@@ -1,12 +1,13 @@
 """
-¿Se puede detectar verbos separables SIN el parser de dependencias de spaCy?
+Can separable verbs be detected WITHOUT spaCy's dependency parser?
 
-Importa para saber si la app puede correr sola en el teléfono: en iOS,
-NLTagger da lema y categoría pero no árbol de dependencias, y para los
-separables devuelve la raíz sin prefijo ('stehen' en vez de 'aufstehen').
+It matters for knowing whether the app could run on the phone alone: on iOS,
+NLTagger gives you lemma and part of speech but no dependency tree, and for
+separables it returns the stem without the prefix ('stehen' instead of
+'aufstehen').
 
-La hipótesis: alcanza con reglas de posición + verificar contra diccionario.
-Se compara contra spaCy, que acá hace de patrón de referencia.
+The hypothesis: position rules plus a dictionary check are enough. Measured
+against spaCy, which plays reference standard here.
 """
 import pathlib
 import sys, re
@@ -14,29 +15,29 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "backend
 from german import nlp, SEPARABLE, _split_prefix
 from dictionary import is_verb
 
-# Signos que cierran una cláusula: la partícula suele quedar justo antes.
+# Marks that close a clause: the particle usually sits right before one.
 CIERRE = {".", ",", ";", ":", "!", "?", "–", "—", ")", '"', "“", "”",
-          # una coordinada también cierra la cláusula: "…nimmt teil UND bringt…"
+          # a coordinator closes the clause too: "…nimmt teil UND bringt…"
           "und", "oder", "aber", "sondern", "denn", "sowie"}
 
 
 def detectar_sin_dependencias(doc):
     """
-    Solo con lema + categoría + posición, que es lo que da NLTagger.
+    Lemma + part of speech + position only, which is all NLTagger gives you.
 
-    Regla: una partícula separable suelta aparece al final de su cláusula.
-    Se busca hacia atrás el verbo conjugado más cercano y se verifica que el
-    verbo reconstruido exista de verdad.
+    The rule: a loose separable particle turns up at the end of its clause. Look
+    backwards for the nearest conjugated verb, then check the rebuilt verb
+    actually exists.
     """
     encontrados = {}
     for tok in doc:
         if tok.text.lower() not in SEPARABLE:
             continue
-        # ¿está al final de la cláusula? (le sigue puntuación o el final)
+        # is it at the end of the clause? (punctuation or the end follows)
         sig = doc[tok.i + 1] if tok.i + 1 < len(doc) else None
         if sig is not None and sig.text.lower() not in CIERRE:
             continue
-        # verbo conjugado más cercano hacia atrás, dentro de la misma oración
+        # nearest conjugated verb going backwards, inside the same sentence
         limite = tok.sent.start          # .sent devuelve un Span nuevo cada vez:
         for j in range(tok.i - 1, max(tok.i - 25, -1), -1):   # comparar con `is` no sirve
             v = doc[j]

@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- PLANTILLA: cambiá /RUTA/A/lesen por dónde tengas la carpeta,
-       y copiá esto a ~/Library/LaunchAgents/ para que arranque solo. -->
+  <!-- TEMPLATE: swap /RUTA/A/lesen for wherever the folder actually lives,
+       then copy this into ~/Library/LaunchAgents/ so it starts on its own. -->
 
   <key>Label</key>
   <string>com.lesen.server</string>
@@ -25,14 +25,14 @@
   <key>WorkingDirectory</key>
   <string>/RUTA/A/lesen</string>
 
-  <!-- Arranca al iniciar sesión y se vuelve a levantar solo si se cae. -->
+  <!-- Starts at login, and comes back on its own if it falls over. -->
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
 
-  <!-- Espera 5s entre reintentos: si algo está roto de verdad, no quiero
-       que launchd lo reinicie en bucle cerrado. -->
+  <!-- 5s between retries: if something is genuinely broken, launchd should
+       not restart it in a tight loop. -->
   <key>ThrottleInterval</key>
   <integer>5</integer>
 
