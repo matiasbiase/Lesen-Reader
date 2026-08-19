@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- PLANTILLA: cambiá /RUTA/A/lesen por dónde tengas la carpeta,
+       y copiá esto a ~/Library/LaunchAgents/ para que arranque solo. -->
+
+  <key>Label</key>
+  <string>com.lesen.server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/RUTA/A/lesen/.venv/bin/python</string>
+    <string>-m</string>
+    <string>uvicorn</string>
+    <string>app:app</string>
+    <string>--app-dir</string>
+    <string>/RUTA/A/lesen/backend</string>
+    <string>--host</string>
+    <string>0.0.0.0</string>
+    <string>--port</string>
+    <string>8777</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/RUTA/A/lesen</string>
+
+  <!-- Arranca al iniciar sesión y se vuelve a levantar solo si se cae. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Espera 5s entre reintentos: si algo está roto de verdad, no quiero
+       que launchd lo reinicie en bucle cerrado. -->
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+
+  <key>StandardOutPath</key>
+  <string>/RUTA/A/lesen/data/server.log</string>
+  <key>StandardErrorPath</key>
+  <string>/RUTA/A/lesen/data/server.log</string>
+</dict>
+</plist>

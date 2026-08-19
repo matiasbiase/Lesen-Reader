@@ -1,0 +1,14 @@
+# El entorno de Python: 239 MB que se rearman con run.sh
+.venv/
+__pycache__/
+*.pyc
+
+# Tus palabras, tus notas y el log del server: son tuyos, no del repo.
+# La base se crea sola la primera vez que arranca.
+data/
+
+# Tu dirección de Tailscale: es de tu máquina, no del proyecto.
+direccion.txt
+
+# basura de macOS
+.DS_Store

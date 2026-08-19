@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="lesen">
+<meta name="theme-color" content="#faf8f4" id="theme-color">
+<title>lesen</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/styles.css">
+<script>
+// Se resuelve el tema ANTES de pintar: si esperás al final del body, la app
+// arranca en claro y pega un fogonazo blanco al pasar a oscuro.
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("lesen-theme"); } catch (e) {}
+  if (t !== "dark" && t !== "light") {
+    t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.dataset.theme = t;
+})();
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="back" id="back" hidden aria-label="Volver">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <h1 id="title">lesen</h1>
+  <button class="icon-btn" id="bookmark" hidden aria-label="Guardar nota">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4h12v17l-6-4-6 4V4z" stroke-linejoin="round"/></svg>
+  </button>
+  <button class="icon-btn" id="theme" aria-label="Cambiar a modo oscuro"></button>
+  <span class="dot off" id="health"></span>
+</header>
+
+<!-- NOTICIAS -->
+<section class="view on" id="v-feed">
+  <div class="chips" id="topics"></div>
+  <form class="kwrow" id="kwform">
+    <svg class="kwicon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5" stroke-linecap="round"/></svg>
+    <input id="kwinput" placeholder="KI, Design, Miete…" autocomplete="off">
+  </form>
+  <div class="chips" id="kws"></div>
+  <details class="adv" id="tensebox">
+    <summary>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2" stroke-linecap="round"/></svg>
+      Tiempos verbales
+    </summary>
+    <div class="chips" id="tenses"></div>
+  </details>
+  <div id="list"></div>
+</section>
+
+<!-- LECTOR -->
+<section class="view" id="v-read">
+  <div id="article"></div>
+</section>
+
+<!-- GUARDADAS -->
+<section class="view" id="v-saved">
+  <div id="savedlist"></div>
+</section>
+
+<!-- VOCABULARIO -->
+<section class="view" id="v-vocab">
+  <div class="stats" id="vstats"></div>
+  <div class="chips" id="vfilter">
+    <button class="chip on" data-f="todas">Todas</button>
+    <button class="chip" data-f="aprendiendo">Aprendiendo</button>
+    <button class="chip" data-f="sabida">Sabidas</button>
+  </div>
+  <div id="vlist"></div>
+</section>
+
+<!-- REPASO -->
+<section class="view" id="v-study">
+  <div id="studybox"></div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grip"></div>
+  <div id="sheetbody"></div>
+</div>
+
+<nav class="tabs">
+  <button class="tab on" data-v="feed" aria-label="Noticias">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h11a1 1 0 011 1v11a2 2 0 01-2 2H5a2 2 0 01-2-2V7a1 1 0 011-1z" stroke-linejoin="round"/><path d="M16 9h3a2 2 0 012 2v7a2 2 0 01-2 2" stroke-linejoin="round"/><path d="M7 10h5M7 14h4" stroke-linecap="round"/></svg>
+    Noticias
+  </button>
+  <button class="tab" data-v="read" aria-label="Leyendo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 6.6C10.4 5.1 7.9 4.6 4 5.1v12.6c3.9-.5 6.4 0 8 1.5 1.6-1.5 4.1-2 8-1.5V5.1c-3.9-.5-6.4 0-8 1.5z" stroke-linejoin="round"/><path d="M12 6.6v12.6" stroke-linecap="round"/></svg>
+    Leyendo
+  </button>
+  <button class="tab" data-v="saved" aria-label="Guardadas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4h12v17l-6-4-6 4V4z" stroke-linejoin="round"/></svg>
+    Guardadas
+  </button>
+  <button class="tab" data-v="vocab" aria-label="Palabras">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 012 2v11" stroke-linecap="round"/><path d="M7 12h6" stroke-linecap="round"/></svg>
+    Palabras
+  </button>
+  <button class="tab" data-v="study" aria-label="Repaso">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3.5 12a8.5 8.5 0 0114.3-6.2L21 8" stroke-linecap="round"/><path d="M21 3.5V8.5h-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.5 12a8.5 8.5 0 01-14.3 6.2L3 16" stroke-linecap="round"/><path d="M3 20.5V15.5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Repaso
+  </button>
+</nav>
+
+<script src="/app.js"></script>
+</body>
+</html>
